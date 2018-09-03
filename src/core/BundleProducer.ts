@@ -10,9 +10,10 @@ import * as chokidar from "chokidar";
 import { utils, each } from "realm-utils";
 import { ProducerAbstraction, ProducerAbtractionOptions } from "../quantum/core/ProducerAbstraction";
 import { BundleAbstraction } from "../quantum/core/BundleAbstraction";
+import { ModuleCollection } from "./ModuleCollection";
 
 export class BundleProducer {
-	public bundles = new Map<string, Bundle>();
+	public bundles: Map<string, Bundle>;
 	public hmrInjected = false;
 	public hmrAllowed = true;
 	public allowSyntheticDefaultImports = false;
@@ -22,6 +23,7 @@ export class BundleProducer {
 	public sharedEvents = new EventEmitter();
 	public writeBundles = true;
 	public sharedCustomPackages: Map<string, SharedCustomPackage>;
+	public defaultCollection: ModuleCollection;
 	public runner: BundleRunner;
 	public userEnvVariables: any = Object.assign({ NODE_ENV: "production" }, process.env);
 	public devServerOptions: ServerOptions;
@@ -32,7 +34,12 @@ export class BundleProducer {
 	private chokidarOptions: any;
 	private warnings = new Map<string, string[]>();
 	constructor(public fuse: FuseBox) {
+		this.bundles = new Map<string, Bundle>();
 		this.runner = new BundleRunner(this.fuse);
+	}
+
+	public reset() {
+		this.bundles = new Map<string, Bundle>();
 	}
 
 	public run(opts: { chokidar?: any; runType?: string }): Promise<BundleProducer> {
@@ -207,7 +214,9 @@ export class BundleProducer {
 		settings.forEach((expression, bundleName) => {
 			if (expression.test(path)) {
 				const bundle = this.bundles.get(bundleName);
-				if (bundle.watchFilterFn && !bundle.watchFilterFn(path)) { return; }
+				if (bundle.watchFilterFn && !bundle.watchFilterFn(path)) {
+					return;
+				}
 
 				const defer = bundle.fuse.context.defer;
 

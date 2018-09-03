@@ -92,6 +92,8 @@ export class FuseBox {
 
 	public producer = new BundleProducer(this);
 
+	public projectCollection: ModuleCollection;
+
 	/**
 	 * Creates an instance of FuseBox.
 	 *
@@ -401,6 +403,9 @@ export class FuseBox {
 					}
 
 					public addDefaultContents() {
+						if (self.producer) {
+							self.producer.defaultCollection = this.defaultCollection;
+						}
 						return self.collectionSource.get(this.defaultCollection).then((cnt: string) => {
 							self.context.log.echoDefaultCollection(this.defaultCollection, cnt);
 						});

@@ -1,42 +1,43 @@
-import { acornParse } from "../../analysis/FileAnalysis";
-import { PackageAbstraction } from "./PackageAbstraction";
-import { ASTTraverse } from "../../ASTTraverse";
-import { RequireStatement } from "./nodes/RequireStatement";
 import * as escodegen from "escodegen";
 import * as path from "path";
-import { ensureFuseBoxPath, transpileToEs5 } from "../../Utils";
-
+import { acornParse } from "../../analysis/FileAnalysis";
+import { ASTTraverse } from "../../ASTTraverse";
+import { File } from "../../core/File";
+import { Concat, ensureFuseBoxPath, transpileToEs5 } from "../../Utils";
+import { QuantumBit } from "../plugin/QuantumBit";
+import { QuantumCore } from "../plugin/QuantumCore";
 import {
-	matchesAssignmentExpression,
-	matchesLiteralStringExpression,
-	matchesSingleFunction,
-	matchesDoubleMemberExpression,
+	compareStatement,
+	isExportComputed,
+	isExportMisused,
+	isTrueRequireFunction,
 	matcheObjectDefineProperty,
+	matchesAssignmentExpression,
+	matchesDefinedExpression,
+	matchesDoubleMemberExpression,
 	matchesEcmaScript6,
+	matchesExportReference,
+	matchesIfStatementFuseBoxIsEnvironment,
+	matchesIfStatementProcessEnv,
+	matchesLiteralStringExpression,
+	matchesNodeEnv,
+	matchesSingleFunction,
 	matchesTypeOf,
+	matchNamedExport,
 	matchRequireIdentifier,
 	trackRequireMember,
-	matchNamedExport,
-	isExportMisused,
-	matchesNodeEnv,
-	matchesExportReference,
-	matchesIfStatementProcessEnv,
-	compareStatement,
-	matchesIfStatementFuseBoxIsEnvironment,
-	isExportComputed,
-	isTrueRequireFunction,
-	matchesDefinedExpression,
 } from "./AstUtils";
 import { ExportsInterop } from "./nodes/ExportsInterop";
-import { UseStrict } from "./nodes/UseStrict";
+import { GenericAst } from "./nodes/GenericAst";
+import { NamedExport } from "./nodes/NamedExport";
+import { ReplaceableBlock } from "./nodes/ReplaceableBlock";
+import { RequireStatement } from "./nodes/RequireStatement";
 import { TypeOfExportsKeyword } from "./nodes/TypeOfExportsKeyword";
 import { TypeOfModuleKeyword } from "./nodes/TypeOfModuleKeyword";
 import { TypeOfWindowKeyword } from "./nodes/TypeOfWindowKeyword";
-import { NamedExport } from "./nodes/NamedExport";
-import { GenericAst } from "./nodes/GenericAst";
-import { QuantumCore } from "../plugin/QuantumCore";
-import { ReplaceableBlock } from "./nodes/ReplaceableBlock";
-import { QuantumBit } from "../plugin/QuantumBit";
+import { UseStrict } from "./nodes/UseStrict";
+import { PackageAbstraction } from "./PackageAbstraction";
+import { QuantumSourceMap } from "./QuantumSourceMap";
 
 const globalNames = new Set<string>(["__filename", "__dirname", "exports", "module"]);
 
@@ -46,7 +47,26 @@ export class FileAbstraction {
 	public dependents = new Set<FileAbstraction>();
 	public ast: any;
 	public fuseBoxDir;
-	public referencedRequireStatements = new Set<RequireStatement>();
+
+	public referencedRequireStatements: Set<RequireStatement>;
+	public namedRequireStatements: Map<string, RequireStatement>;
+	public requireStatements: Set<RequireStatement>;
+	public dynamicImportStatements: Set<RequireStatement>;
+	public fuseboxIsEnvConditions: Set<ReplaceableBlock>;
+	public definedLocally: Set<string>;
+	public exportsInterop: Set<ExportsInterop>;
+	public useStrict: Set<UseStrict>;
+	public typeofExportsKeywords: Set<TypeOfExportsKeyword>;
+	public typeofModulesKeywords: Set<TypeOfModuleKeyword>;
+	public typeofWindowKeywords: Set<TypeOfWindowKeyword>;
+	public typeofGlobalKeywords: Set<GenericAst>;
+	public typeofDefineKeywords: Set<GenericAst>;
+	public typeofRequireKeywords: Set<GenericAst>;
+	public localExportUsageAmount: Map<string, number>;
+	private globalVariables: Set<string>;
+	private dependencies: Map<FileAbstraction, Set<RequireStatement>>;
+	public namedExports: Map<string, NamedExport>;
+	public processNodeEnv: Set<ReplaceableBlock>;
 
 	public isEcmaScript6 = false;
 	public shakable = false;
@@ -58,39 +78,40 @@ export class FileAbstraction {
 	public quantumDynamic = false;
 
 	public quantumBit: QuantumBit;
-	public namedRequireStatements = new Map<string, RequireStatement>();
 
 	/** FILE CONTENTS */
-	public requireStatements = new Set<RequireStatement>();
-	public dynamicImportStatements = new Set<RequireStatement>();
-	public fuseboxIsEnvConditions = new Set<ReplaceableBlock>();
 
-	public definedLocally = new Set<string>();
-
-	public exportsInterop = new Set<ExportsInterop>();
-	public useStrict = new Set<UseStrict>();
-	public typeofExportsKeywords = new Set<TypeOfExportsKeyword>();
-	public typeofModulesKeywords = new Set<TypeOfModuleKeyword>();
-	public typeofWindowKeywords = new Set<TypeOfWindowKeyword>();
-	public typeofGlobalKeywords = new Set<GenericAst>();
-	public typeofDefineKeywords = new Set<GenericAst>();
-	public typeofRequireKeywords = new Set<GenericAst>();
-
-	public namedExports = new Map<string, NamedExport>();
-	public processNodeEnv = new Set<ReplaceableBlock>();
 	public core: QuantumCore;
 
 	public isEntryPoint = false;
 
 	public wrapperArguments: string[];
-	public localExportUsageAmount = new Map<string, number>();
-	private globalVariables = new Set<string>();
+
 	private id: string;
 	private treeShakingRestricted = false;
 	private removalRestricted = false;
-	private dependencies = new Map<FileAbstraction, Set<RequireStatement>>();
 
 	constructor(public fuseBoxPath: string, public packageAbstraction: PackageAbstraction) {
+		this.referencedRequireStatements = new Set<RequireStatement>();
+		this.namedRequireStatements = new Map<string, RequireStatement>();
+		this.requireStatements = new Set<RequireStatement>();
+		this.dynamicImportStatements = new Set<RequireStatement>();
+		this.fuseboxIsEnvConditions = new Set<ReplaceableBlock>();
+		this.definedLocally = new Set<string>();
+		this.exportsInterop = new Set<ExportsInterop>();
+		this.useStrict = new Set<UseStrict>();
+		this.typeofExportsKeywords = new Set<TypeOfExportsKeyword>();
+		this.typeofModulesKeywords = new Set<TypeOfModuleKeyword>();
+		this.typeofWindowKeywords = new Set<TypeOfWindowKeyword>();
+		this.typeofGlobalKeywords = new Set<GenericAst>();
+		this.typeofDefineKeywords = new Set<GenericAst>();
+		this.typeofRequireKeywords = new Set<GenericAst>();
+		this.localExportUsageAmount = new Map<string, number>();
+		this.globalVariables = new Set<string>();
+		this.dependencies = new Map<FileAbstraction, Set<RequireStatement>>();
+		this.namedExports = new Map<string, NamedExport>();
+		this.processNodeEnv = new Set<ReplaceableBlock>();
+
 		this.fuseBoxDir = ensureFuseBoxPath(path.dirname(fuseBoxPath));
 		this.setID(fuseBoxPath);
 		packageAbstraction.registerFileAbstraction(this);
@@ -260,21 +281,47 @@ export class FileAbstraction {
 		this.treeShakingRestricted = true;
 	}
 
-	public generate(ensureEs5: boolean = false) {
-		let code = escodegen.generate(this.ast);
+	public async generate(ensureEs5: boolean = false): Promise<Concat> {
+		const producer = this.core.producer;
+		let sourceMap;
+		let originalFile: File;
+		const escodegenOpts: any = {};
+		if (producer) {
+			originalFile = this.core.originalFiles.get(this.getFuseBoxFullPath());
+		}
+		// dealing not with original file
+
+		let code = escodegen.generate(this.ast, escodegenOpts);
 		if (ensureEs5 && this.isEcmaScript6) {
 			code = transpileToEs5(code);
 		}
-		let fn = ["function(", this.wrapperArguments ? this.wrapperArguments.join(",") : "", "){\n"];
+
+		if (this.core.context.useSourceMaps) {
+			if (originalFile && originalFile.sourceMap) {
+				this.core.log.echoInfo(`SourceMaps: Blending project file ${originalFile.info.fuseBoxPath}`);
+				sourceMap = await QuantumSourceMap.generateOriginalSourceMap(originalFile, code);
+			} else {
+				if (this.core.opts.shouldGenerateVendorSourceMaps()) {
+					const vendorPath = `modules/${this.getFuseBoxFullPath()}`;
+					this.core.log.echoInfo(`SourceMaps: Generating ${vendorPath}`);
+					sourceMap = QuantumSourceMap.generateSourceMap(code, vendorPath);
+				}
+			}
+		}
+
+		const fn = new Concat(true, this.getFuseBoxFullPath(), "\n");
+		fn.add(null, ["function(", this.wrapperArguments ? this.wrapperArguments.join(",") : "", "){\n"].join(""));
+
 		if (this.isDirnameUsed()) {
-			fn.push(`var __dirname = ${JSON.stringify(this.fuseBoxDir)};` + "\n");
+			fn.add(null, `var __dirname = ${JSON.stringify(this.fuseBoxDir)};` + "\n");
 		}
 		if (this.isFilenameUsed()) {
-			fn.push(`var __filename = ${JSON.stringify(this.fuseBoxPath)};` + "\n");
+			fn.add(null, `var __filename = ${JSON.stringify(this.fuseBoxPath)};` + "\n");
 		}
-		fn.push(code, "\n}");
-		code = fn.join("");
-		return code;
+		fn.add(null, code, sourceMap);
+		fn.add(null, "}");
+
+		return fn;
 	}
 
 	/**
@@ -432,7 +479,6 @@ export class FileAbstraction {
 		if (isTrueRequireFunction(node)) {
 			node.name = this.core.opts.quantumVariableName;
 		}
-		//console.log(node);
 		// require statements
 		if (matchesSingleFunction(node, "require")) {
 			// adding a require statement

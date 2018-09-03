@@ -25,6 +25,9 @@ export interface IQuantumExtensionParams {
 	polyfills?: string[];
 	definedExpressions?: { [key: string]: boolean | string | number };
 	processPolyfill?: boolean;
+	sourceMaps?: {
+		vendor: boolean;
+	};
 	css?:
 		| {
 				path?: string;
@@ -47,6 +50,9 @@ export class QuantumOptions {
 	private replaceProcessEnv = true;
 	private containedAPI = false;
 	private processPolyfill = false;
+	private sourceMapsOption: {
+		vendor: boolean;
+	};
 	private bakeApiIntoBundle: string[] | true | undefined;
 	private noConflictApi = false;
 
@@ -106,6 +112,9 @@ export class QuantumOptions {
 			if (opts.manifest === true) {
 				this.manifestFile = "manifest.json";
 			}
+		}
+		if (opts.sourceMaps) {
+			this.sourceMapsOption = opts.sourceMaps;
 		}
 		if (opts.uglify) {
 			this.uglify = opts.uglify;
@@ -209,6 +218,13 @@ export class QuantumOptions {
 
 	public getCSSPath() {
 		return this.cssPath;
+	}
+
+	public shouldGenerateVendorSourceMaps() {
+		if (this.sourceMapsOption) {
+			return this.sourceMapsOption.vendor;
+		}
+		return false;
 	}
 
 	public getCSSFiles() {

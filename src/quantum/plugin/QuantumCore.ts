@@ -30,6 +30,7 @@ import { QuantumBit } from "./QuantumBit";
 import { CSSModifications } from "./modifications/CSSModifications";
 import { CSSCollection } from "../core/CSSCollection";
 import { QuantumTask } from "../core/QuantumTask";
+import { File } from "../../core/File";
 
 export interface QuantumStatementMapping {
 	statement: RequireStatement;
@@ -39,22 +40,32 @@ export class QuantumCore {
 	public producerAbstraction: ProducerAbstraction;
 	public api: ResponsiveAPI;
 	public index = 0;
-	public postTasks = new QuantumTask(this);
+	public postTasks: QuantumTask;
 	public log: Log;
 	public opts: QuantumOptions;
-	public cssCollection = new Map<string, CSSCollection>();
-	public writer = new BundleWriter(this);
+	public cssCollection: Map<string, CSSCollection>;
+	public writer: BundleWriter;
 	public context: WorkFlowContext;
-	public requiredMappings = new Set<RegExp>();
-	public quantumBits = new Map<string, QuantumBit>();
-	public customStatementSolutions = new Set<RegExp>();
-	public computedStatementRules = new Map<string, ComputedStatementRule>();
-	public splitFiles = new Set<FileAbstraction>();
+	public requiredMappings: Set<RegExp>;
+	public quantumBits: Map<string, QuantumBit>;
+	public customStatementSolutions: Set<RegExp>;
+	public computedStatementRules: Map<string, ComputedStatementRule>;
+	public splitFiles: Set<FileAbstraction>;
+	public originalFiles: Map<string, File>;
 
 	constructor(public producer: BundleProducer, opts: QuantumOptions) {
 		this.opts = opts;
-
+		this.cssCollection = new Map<string, CSSCollection>();
+		this.writer = new BundleWriter(this);
+		this.postTasks = new QuantumTask(this);
 		this.api = new ResponsiveAPI(this);
+		this.originalFiles = new Map<string, File>();
+		this.customStatementSolutions = new Set<RegExp>();
+		this.computedStatementRules = new Map<string, ComputedStatementRule>();
+		this.requiredMappings = new Set<RegExp>();
+		this.splitFiles = new Set<FileAbstraction>();
+		this.quantumBits = new Map<string, QuantumBit>();
+
 		this.log = producer.fuse.context.log;
 		this.log.echoBreak();
 		this.log.groupHeader("Launching quantum core");
@@ -62,6 +73,12 @@ export class QuantumCore {
 			this.opts.apiCallback(this);
 		}
 		this.context = this.producer.fuse.context;
+
+		if (producer) {
+			producer.defaultCollection.dependencies.forEach(item => {
+				this.originalFiles.set(item.getUniquePath(), item);
+			});
+		}
 	}
 
 	public solveComputed(
@@ -116,8 +133,8 @@ export class QuantumCore {
 	}
 
 	private ensureBitBundle(bit: QuantumBit) {
-		let bundle: Bundle;
-		if (!this.producer.bundles.get(bit.name)) {
+		let bundle: Bundle = this.producer.bundles.get(bit.name);
+		if (!bundle) {
 			this.log.echoInfo(`Create split bundle ${bit.name} with entry point ${bit.entry.getFuseBoxFullPath()}`);
 			const fusebox = this.context.fuse.copy();
 			bundle = new Bundle(bit.getBundleName(), fusebox, this.producer);
@@ -292,8 +309,13 @@ export class QuantumCore {
 					});
 				}
 				this.log.echoInfo(`Render bundle ${bundleAbstraction.name}`);
-				const bundleCode = generator.render();
-				this.producer.bundles.get(bundleAbstraction.name).generatedCode = new Buffer(bundleCode);
+				const targetBundle = this.producer.bundles.get(bundleAbstraction.name);
+
+				const bundleCode = generator.render(targetBundle);
+
+				targetBundle.generatedCode = new Buffer(bundleCode.content);
+				targetBundle.generatedSourceMapsPath = generator.sourceMapsPath;
+				targetBundle.generatedSourceMaps = generator.contents.sourceMap;
 			});
 		});
 	}

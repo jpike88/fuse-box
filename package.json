@@ -55,6 +55,7 @@
     "request": "^2.79.0",
     "shorthash": "0.0.2",
     "source-map": "^0.7.1",
+    "sourcemap-blender": "^1.0.2",
     "tslib": "^1.8.0",
     "watch": "^1.0.1",
     "ws": "^1.1.1"
