@@ -456,12 +456,12 @@ export class File {
 					this.context.fuse.producer.addWarning(
 						"unresolved",
 						`Statement "${this.info.fuseBoxPath}" has failed to resolve in module "${this.collection &&
-							this.collection.name}"`,
+						this.collection.name}"`,
 					);
 				} else {
 					this.addError(
 						`Asset reference "${this.info.fuseBoxPath}" has failed to resolve in module "${this.collection &&
-							this.collection.name}"`,
+						this.collection.name}"`,
 					);
 				}
 			}
@@ -686,12 +686,22 @@ export class File {
 			if (!this.context.inlineSourceMaps) {
 				delete jsonSourceMaps.sourcesContent;
 			}
-			result.outputText = result.outputText
-				.replace(
-					`//# sourceMappingURL=${this.info.fuseBoxPath}.map`,
-					`//# sourceMappingURL=${this.context.bundle.name}.js.map?tm=${this.context.cacheBustPreffix}`,
-				)
-				.replace("//# sourceMappingURL=module.js.map", "");
+			if (this.context.target === "server") {
+				// no cache busting suffix for server targets, as it breaks file system lookups
+				result.outputText = result.outputText
+					.replace(
+						`//# sourceMappingURL=${this.info.fuseBoxPath}.map`,
+						`//# sourceMappingURL=${this.context.bundle.name}.js.map`,
+					)
+					.replace("//# sourceMappingURL=module.js.map", "");
+			} else {
+				result.outputText = result.outputText
+					.replace(
+						`//# sourceMappingURL=${this.info.fuseBoxPath}.map`,
+						`//# sourceMappingURL=${this.context.bundle.name}.js.map?tm=${this.context.cacheBustPreffix}`,
+					)
+					.replace("//# sourceMappingURL=module.js.map", "");
+			}
 			this.sourceMap = JSON.stringify(jsonSourceMaps);
 		}
 		this.contents = result.outputText;
