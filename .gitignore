@@ -10,25 +10,29 @@ _playground
 .release
 .settings
 .tmp
-.vscode
+debug.log
+
 build
 dist
 node_modules
 npm-debug.log*
-playground
+yarn-error.log
+coverage/
 sourcemaps.js.map
 yarn.lock
+some.sh
+.temp
+.cache
+docs/api
+.sortierignore
+package-lock.json
 
 # FuseBox Loader API built type definition
 # Which is then exported as a module from `src`
 src/modules/fuse-loader/LoaderAPI.ts
+src/production/__test__/dist
 
-# FuseBox modules built from TS
-modules/fsbx-default-css-plugin
-modules/fuse-hmr
-modules/fuse-loader
-modules/fusebox-hot-reload
-modules/fusebox-websocket
+playground/bundle/src/lodash
 
 # Website
 website/.firebase
@@ -38,3 +42,8 @@ website/node_modules
 website/static/css
 website/translated_docs
 website/yarn.lock
+
+some\.sh
+
+src/tests/stubs/sparky/foo/e\.json
+playground/random/src/bench
